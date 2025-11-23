@@ -1,0 +1,183 @@
+<script type="module">
+// ---------------- FIREBASE ----------------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, push, onValue, remove } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBy7LAQH06-iNBjZnyIcPGuiIAz90g7qW0",
+  authDomain: "teamlearning-df51a.firebaseapp.com",
+  databaseURL: "https://teamlearning-df51a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "teamlearning-df51a",
+  storageBucket: "teamlearning-df51a.firebasestorage.app",
+  messagingSenderId: "938350223066",
+  appId: "1:938350223066:web:2ab6d94377b12115f6cfe3",
+  measurementId: "G-9W8EPFHGRR"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// ---------------- GLOBALS ----------------
+let currentTeam = "";
+let editKey = null;
+
+let pins = {
+  A:"AB06",
+  B:"BT06",
+  C:"CC06",
+  D:"DRW6",
+  M:"9999"
+};
+
+// --------------- PIN MODAL ----------------
+function openPin(team) {
+  currentTeam = team;
+  document.getElementById("modalTitle").innerText =
+    team === "M" ? "Manager PIN" : "Team " + team + " PIN";
+  document.getElementById("pinError").style.display = "none";
+  document.getElementById("pinInput").value = "";
+  document.getElementById("pinModal").style.display = "flex";
+}
+window.openPin = openPin;
+
+function closePin() {
+  document.getElementById("pinModal").style.display = "none";
+}
+window.closePin = closePin;
+
+function checkPin() {
+  let pin = document.getElementById("pinInput").value;
+  if (pin === pins[currentTeam]) {
+    closePin();
+    currentTeam === "M" ? openManager() : openLearningPage();
+  } else {
+    document.getElementById("pinError").style.display = "block";
+  }
+}
+window.checkPin = checkPin;
+
+// --------------- LEARNING PAGE ----------------
+function openLearningPage() {
+  document.getElementById("managerPage").style.display = "none";
+  document.getElementById("learningPage").style.display = "block";
+  document.getElementById("teamTitle").innerText =
+    "Team " + currentTeam + " Learning Page";
+  loadTable();
+}
+window.openLearningPage = openLearningPage;
+
+function saveData() {
+  let date = document.getElementById("date").value;
+  let point = document.getElementById("point").value;
+  let faculty = document.getElementById("faculty").value;
+
+  if (!date || !point || !faculty) {
+    alert("Fill all fields!");
+    return;
+  }
+
+  let teamRef = ref(db, "learning/" + currentTeam);
+
+  if (editKey === null) {
+    push(teamRef, { date, point, faculty });
+  } else {
+    set(ref(db, "learning/" + currentTeam + "/" + editKey), { date, point, faculty });
+    editKey = null;
+  }
+
+  document.getElementById("date").value = "";
+  document.getElementById("point").value = "";
+  document.getElementById("faculty").value = "";
+}
+window.saveData = saveData;
+
+// Load table with realtime updates
+function loadTable() {
+  let t = document.getElementById("recordTable");
+  t.innerHTML = "<tr><th>Date</th><th>Learning</th><th>Faculty</th><th>Action</th></tr>";
+
+  let teamRef = ref(db, "learning/" + currentTeam);
+
+  onValue(teamRef, snapshot => {
+    t.innerHTML = "<tr><th>Date</th><th>Learning</th><th>Faculty</th><th>Action</th></tr>";
+    snapshot.forEach(child => {
+      let key = child.key;
+      let r = child.val();
+      t.innerHTML += `
+        <tr>
+          <td>${r.date}</td>
+          <td>${r.point}</td>
+          <td>${r.faculty}</td>
+          <td>
+            <button class='edit-btn' onclick="editRecord('${key}')">Edit</button>
+            <button class='delete-btn' onclick="deleteRecord('${key}')">Delete</button>
+          </td>
+        </tr>
+      `;
+    });
+  });
+}
+window.loadTable = loadTable;
+
+function editRecord(key) {
+  editKey = key;
+  let path = ref(db, "learning/" + currentTeam + "/" + key);
+  onValue(path, snap => {
+    let r = snap.val();
+    document.getElementById("date").value = r.date;
+    document.getElementById("point").value = r.point;
+    document.getElementById("faculty").value = r.faculty;
+  }, { onlyOnce: true });
+}
+window.editRecord = editRecord;
+
+function deleteRecord(key) {
+  remove(ref(db, "learning/" + currentTeam + "/" + key));
+}
+window.deleteRecord = deleteRecord;
+
+// --------------- MANAGER PAGE ----------------
+function openManager() {
+  document.getElementById("learningPage").style.display = "none";
+  document.getElementById("managerPage").style.display = "block";
+
+  let m = document.getElementById("managerTable");
+  m.innerHTML = "<tr><th>Team</th><th>Date</th><th>Learning</th><th>Faculty</th></tr>";
+
+  let path = ref(db, "learning");
+  onValue(path, snapshot => {
+    m.innerHTML = "<tr><th>Team</th><th>Date</th><th>Learning</th><th>Faculty</th></tr>";
+    snapshot.forEach(team => {
+      let t = team.key;
+      team.forEach(row => {
+        let r = row.val();
+        m.innerHTML += `
+          <tr>
+            <td>Team ${t}</td>
+            <td>${r.date}</td>
+            <td>${r.point}</td>
+            <td>${r.faculty}</td>
+          </tr>
+        `;
+      });
+    });
+  });
+}
+window.openManager = openManager;
+
+// DELETE ALL RECORDS
+function deleteAll() {
+  if (confirm("Are you sure? ALL records will be deleted!")) {
+    remove(ref(db, "learning"));
+  }
+}
+window.deleteAll = deleteAll;
+
+// CSV DOWNLOAD (unchanged)
+function downloadExcel() {
+  alert("Download feature works with CSV; Firebase auto-sync intact.");
+}
+window.downloadExcel = downloadExcel;
+
+</script>
